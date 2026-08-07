@@ -16,15 +16,14 @@ interface PolishResult {
 
 async function generateSampleCringePost(apiKey: string): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `Generate a 2-3 sentence performative, humblebrag social media post draft (for LinkedIn or X).
-Focus on common clichés like waking up at 4:30 AM, cold showers, reading 5 books a week, 'humbled and honored', or 'lessons I learned from a random coffee encounter'. Return ONLY the post text in English without any commentary or quotes.`;
+  const prompt = `Generate a 1-2 sentence performative humblebrag social media post (for LinkedIn/X). Clichés like 4:30 AM start, cold showers, reading 5 books a week. Return ONLY the text in English.`;
 
   const res = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
   });
 
-  return res.text?.trim() || "I am humbled and honored to announce that I woke up at 4:30 AM to read 5 books today.";
+  return res.text?.trim() || "I am humbled to announce that I woke up at 4:30 AM to read 5 books today.";
 }
 
 async function analyzePost(apiKey: string, draft: string): Promise<PolishResult> {
@@ -33,7 +32,7 @@ async function analyzePost(apiKey: string, draft: string): Promise<PolishResult>
     model: "gemini-2.5-flash",
     contents: `Analyze and rewrite this post:\n"${draft}"`,
     config: {
-      systemInstruction: `You are Antidote AI. Output JSON containing cringeScore (0-100), oneLineRoast (sarcastic critique), and rewrites (human, punchyDev, proNatural). All in English.`,
+      systemInstruction: `You are Antidote AI. Output JSON containing cringeScore (0-100), oneLineRoast (sarcastic critique max 15 words), and rewrites (human max 25 words). All in English.`,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -90,7 +89,7 @@ async function postToThreads(threadText: string): Promise<string> {
     throw new Error("THREADS_USER_ID or THREADS_ACCESS_TOKEN / META_ACCESS_TOKEN is not configured.");
   }
 
-  console.log(`[Threads] Creating container...`);
+  console.log(`[Threads] Creating container (Length: ${threadText.length} chars)...`);
   const createRes = await fetch(
     `https://graph.threads.net/v1.0/${threadsUserId}/threads?media_type=TEXT&text=${encodeURIComponent(
       threadText
@@ -137,35 +136,33 @@ async function runAutoMarketing() {
 
   // 1. Generate sample cringe post
   const draftText = await generateSampleCringePost(apiKey);
-  console.log("📝 Generated Draft:", draftText);
 
   // 2. Analyze with DeCringe AI
   const analysis = await analyzePost(apiKey, draftText);
-  console.log("🚩 Cringe Score:", analysis.cringeScore, "%");
-  console.log("🤡 Roast:", analysis.oneLineRoast);
 
-  // 3. Format Threads post
+  // 3. Format Threads post with strict 480 char length limit
+  const draftPreview = draftText.length > 90 ? draftText.substring(0, 90) + "..." : draftText;
+  const roastPreview = analysis.oneLineRoast.length > 90 ? analysis.oneLineRoast.substring(0, 90) + "..." : analysis.oneLineRoast;
+  const humanRewrite = analysis.rewrites.human.length > 110 ? analysis.rewrites.human.substring(0, 110) + "..." : analysis.rewrites.human;
+
   const threadsContent = `☣️ LinkedIn Cringe of the Day
 
-📝 Original Draft:
-"${draftText.length > 180 ? draftText.substring(0, 180) + "..." : draftText}"
-
+📝 Original: "${draftPreview}"
 🚩 Cringe Score: ${analysis.cringeScore}%
-🤡 AI Roast: "${analysis.oneLineRoast}"
+🤡 AI Roast: "${roastPreview}"
 
-💡 Normal Human Rewrite:
-"${analysis.rewrites.human}"
+💡 Human Rewrite:
+"${humanRewrite}"
 
-👉 Fix your humblebrags before posting:
-🔗 https://de-cringe.vercel.app
+👉 Fix your post: https://de-cringe.vercel.app
 
-#buildinpublic #indiehackers #LinkedInCringe #AI #DeCringe`;
+#buildinpublic #AI #DeCringe`;
 
-  console.log("\n--- THREADS POST PREVIEW ---");
+  console.log("\n--- THREADS POST PREVIEW (Length: " + threadsContent.length + " chars) ---");
   console.log(threadsContent);
-  console.log("----------------------------\n");
+  console.log("-----------------------------------------------\n");
 
-  // 4. Post to Threads if credentials exist
+  // 4. Post to Threads
   if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
     const postId = await postToThreads(threadsContent);
     console.log("🎉 Marketing automation complete! Threads Post ID:", postId);
