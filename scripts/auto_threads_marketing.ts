@@ -58,7 +58,7 @@ async function analyzePost(apiKey: string, draft: string): Promise<PolishResult>
 }
 
 async function waitForThreadsContainerReady(creationId: string, accessToken: string): Promise<void> {
-  const maxRetries = 15;
+  const maxRetries = 20;
   for (let i = 0; i < maxRetries; i++) {
     try {
       const statusRes = await fetch(
@@ -69,6 +69,8 @@ async function waitForThreadsContainerReady(creationId: string, accessToken: str
       console.log(`[Threads] Checking container status (${i + 1}/${maxRetries}): ${status || "CHECKING..."}`);
 
       if (status === "FINISHED" || status === "PUBLISHED") {
+        // Meta Graph API propagation buffer
+        await new Promise((r) => setTimeout(r, 3000));
         return;
       }
       if (status === "ERROR") {
@@ -77,11 +79,11 @@ async function waitForThreadsContainerReady(creationId: string, accessToken: str
     } catch (e: any) {
       if (e.message?.includes("Threads media processing error")) throw e;
     }
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
   }
 }
 
-async function postToThreads(threadText: string): Promise<string> {
+async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
   const threadsUserId = process.env.THREADS_USER_ID;
   const accessToken = process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 
@@ -118,8 +120,30 @@ async function postToThreads(threadText: string): Promise<string> {
     throw new Error(`Failed to publish Threads post: ${JSON.stringify(publishData)}`);
   }
 
-  console.log(`[Threads] Successfully published post! Post ID: ${threadsPostId}`);
   return threadsPostId;
+}
+
+async function postToThreads(threadText: string): Promise<string> {
+  const maxAttempts = 3;
+  let lastError: any = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`[Threads] Attempting post (${attempt}/${maxAttempts})...`);
+      const postId = await postToThreadsSingleAttempt(threadText);
+      console.log(`[Threads] Successfully published post! Post ID: ${postId}`);
+      return postId;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`⚠️ [Threads] Attempt ${attempt} failed: ${err.message || err}`);
+      if (attempt < maxAttempts) {
+        console.log("[Threads] Waiting 5 seconds before retrying...");
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to publish post to Threads after multiple attempts.");
 }
 
 async function sendDiscordNotification(score: number, roast: string, postId: string) {
