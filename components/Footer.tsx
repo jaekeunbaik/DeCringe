@@ -26,7 +26,7 @@ export function Footer() {
               {/* Example Script: <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script> */}
               {/* ========================================================================= */}
               <a
-                href="https://ko-fi.com"
+                href="https://ko-fi.com/ethan0117"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-3 rounded-md bg-accent-yellow text-black font-mono text-xs font-black uppercase tracking-wider flex items-center gap-2 border-2 border-black hover:bg-[#FFF066] shadow-brutal-black transition-transform active:scale-95"
