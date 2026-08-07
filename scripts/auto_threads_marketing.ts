@@ -328,17 +328,23 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
       inline: true,
     });
 
+    fields.push({
+      name: "📊 Realtime Traffic Dashboard",
+      value: "[Vercel Analytics Dashboard](https://vercel.com)",
+      inline: false,
+    });
+
     const res = await fetch(discordUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         embeds: [
           {
-            title: "🚀 [Global Auto-Marketing] Daily Viral Content Report",
+            title: "🚀 [Global Auto-Marketing] Daily Viral Content & Traffic Report",
             color: 0x00b9fe,
             fields,
             timestamp: new Date().toISOString(),
-            footer: { text: "DeCringe Auto Marketing Agent" },
+            footer: { text: "DeCringe Auto Marketing & Traffic Agent" },
           },
         ],
       }),
