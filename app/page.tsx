@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { InputSection } from "@/components/InputSection";
 import { ResultsSection } from "@/components/ResultsSection";
@@ -12,6 +12,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [originalText, setOriginalText] = useState("");
   const [result, setResult] = useState<PolishResult | null>(null);
+
+  useEffect(() => {
+    // Log real-time visit to Discord monitor
+    fetch("/api/track").catch(() => {});
+  }, []);
 
   const handlePolishPost = async (inputText: string) => {
     setIsLoading(true);
