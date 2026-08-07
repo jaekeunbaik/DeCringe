@@ -59,7 +59,7 @@ async function generateSampleCringePost(apiKey: string): Promise<string> {
     const prompt = `Generate a 1-2 sentence performative humblebrag social media post (for LinkedIn/X). Clichés like 4:30 AM start, cold showers, reading 5 books a week. Return ONLY the text in English.`;
 
     const res = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-flash-latest",
       contents: prompt,
     });
 
@@ -75,7 +75,7 @@ async function analyzePost(apiKey: string, draft: string): Promise<PolishResult>
   try {
     const ai = new GoogleGenAI({ apiKey });
     const res = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-flash-latest",
       contents: `Analyze and rewrite this post:\n"${draft}"`,
       config: {
         systemInstruction: `You are Antidote AI. Output JSON containing cringeScore (0-100), oneLineRoast (sarcastic critique max 15 words), and rewrites (human max 25 words). All in English.`,
@@ -325,7 +325,7 @@ async function runAutoMarketing() {
   const roastPreview = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
   const humanRewrite = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
 
-  const postContent = `☣️ LinkedIn Cringe of the Day
+  const postContent = `MB☣️ LinkedIn Cringe of the Day
 
 📝 Original: "${draftPreview}"
 🚩 Cringe Score: ${analysis.cringeScore}%
