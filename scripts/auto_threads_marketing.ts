@@ -148,8 +148,8 @@ async function postToThreads(threadText: string): Promise<string> {
 
 /* ==================== BLUESKY AUTOMATION ==================== */
 async function postToBluesky(postContent: string): Promise<string> {
-  const handle = process.env.BSKY_HANDLE; // e.g. "ethan.bsky.social"
-  const password = process.env.BSKY_APP_PASSWORD; // e.g. "xxxx-yyyy-zzzz-wwww"
+  const handle = process.env.BSKY_HANDLE;
+  const password = process.env.BSKY_APP_PASSWORD;
 
   if (!handle || !password) {
     throw new Error("BSKY_HANDLE or BSKY_APP_PASSWORD is not configured.");
@@ -200,8 +200,13 @@ async function postToBluesky(postContent: string): Promise<string> {
 /* ==================== DISCORD NOTIFIER ==================== */
 async function sendDiscordNotification(score: number, roast: string, threadsPostId?: string, bskyUri?: string) {
   const discordUrl = process.env.DISCORD_WEBHOOK_URL || process.env.VITE_DISCORD_WEBHOOK_URL;
-  if (!discordUrl) return;
+  
+  if (!discordUrl) {
+    console.warn("⚠️ DISCORD_WEBHOOK_URL is missing from environment variables. Skipping Discord notification.");
+    return;
+  }
 
+  console.log("🔔 Sending Discord Notification...");
   try {
     const fields = [
       { name: "🚩 Cringe Score", value: `${score}%`, inline: true },
@@ -212,7 +217,7 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
     if (threadsPostId) fields.push({ name: "📲 Threads Post ID", value: threadsPostId, inline: true });
     if (bskyUri) fields.push({ name: "🦋 Bluesky Status", value: "Posted Successfully", inline: true });
 
-    await fetch(discordUrl, {
+    const res = await fetch(discordUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -227,9 +232,15 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
         ],
       }),
     });
-    console.log("🔔 Discord notification sent successfully!");
+    
+    if (res.ok) {
+      console.log("✅ Discord notification sent successfully!");
+    } else {
+      const errText = await res.text();
+      console.error(`❌ Discord Webhook failed with status ${res.status}:`, errText);
+    }
   } catch (err) {
-    console.warn("Discord notification failed:", err);
+    console.error("❌ Discord notification exception:", err);
   }
 }
 
@@ -300,12 +311,8 @@ async function runAutoMarketing() {
   }
 
   // 6. Notify Discord
-  if (threadsPostId || bskyUri) {
-    await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
-    console.log("🎉 Global marketing automation complete!");
-  } else {
-    console.log("⚠️ No SNS credentials triggered. Preview generated successfully!");
-  }
+  await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
+  console.log("🎉 Global marketing automation complete!");
 }
 
 runAutoMarketing().catch((err) => {
