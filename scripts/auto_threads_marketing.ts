@@ -221,7 +221,7 @@ async function postToBluesky(postContent: string): Promise<string> {
     throw new Error(`Bluesky login failed: ${JSON.stringify(sessionData)}`);
   }
 
-  console.log(`[Bluesky] Session created. Publishing post...`);
+  console.log(`[Bluesky] Session created. Publishing post (Length: ${postContent.length} chars)...`);
   const postRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
     method: "POST",
     headers: {
@@ -320,35 +320,53 @@ async function runAutoMarketing() {
   // 2. Analyze with DeCringe AI
   const analysis = await analyzePost(apiKey, draftText);
 
-  // 3. Format post with strict 280-480 char length limit
-  const draftPreview = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
-  const roastPreview = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
-  const humanRewrite = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
+  // 3. Format post for Threads (max 480 chars)
+  const draftPreviewThreads = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
+  const roastPreviewThreads = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
+  const humanRewriteThreads = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
 
-  const postContent = `MB☣️ LinkedIn Cringe of the Day
+  const threadsPostContent = `☣️ LinkedIn Cringe of the Day
 
-📝 Original: "${draftPreview}"
+📝 Original: "${draftPreviewThreads}"
 🚩 Cringe Score: ${analysis.cringeScore}%
-🤡 AI Roast: "${roastPreview}"
+🤡 AI Roast: "${roastPreviewThreads}"
 
 💡 Human Rewrite:
-"${humanRewrite}"
+"${humanRewriteThreads}"
 
 👉 Fix your post: https://de-cringe.vercel.app
 
 #buildinpublic #AI #DeCringe`;
 
-  console.log("\n--- POST PREVIEW (Length: " + postContent.length + " chars) ---");
-  console.log(postContent);
+  // 4. Format post for Bluesky (strict max 280 chars limit)
+  const draftPreviewBsky = draftText.length > 55 ? draftText.substring(0, 55) + "..." : draftText;
+  const roastPreviewBsky = analysis.oneLineRoast.length > 55 ? analysis.oneLineRoast.substring(0, 55) + "..." : analysis.oneLineRoast;
+
+  const bskyPostContent = `☣️ Cringe of the Day
+
+📝 "${draftPreviewBsky}"
+🚩 Score: ${analysis.cringeScore}%
+🤡 Roast: "${roastPreviewBsky}"
+
+👉 Fix your post: https://de-cringe.vercel.app
+
+#buildinpublic #AI #DeCringe`;
+
+  console.log("\n--- THREADS PREVIEW (Length: " + threadsPostContent.length + " chars) ---");
+  console.log(threadsPostContent);
+  console.log("-----------------------------------------------\n");
+
+  console.log("--- BLUESKY PREVIEW (Length: " + bskyPostContent.length + " chars) ---");
+  console.log(bskyPostContent);
   console.log("-----------------------------------------------\n");
 
   let threadsPostId: string | undefined;
   let bskyUri: string | undefined;
 
-  // 4. Post to Threads if configured
+  // 5. Post to Threads if configured
   if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
     try {
-      threadsPostId = await postToThreads(postContent);
+      threadsPostId = await postToThreads(threadsPostContent);
     } catch (err: any) {
       console.error("❌ Threads Posting Error:", err.message);
     }
@@ -356,10 +374,10 @@ async function runAutoMarketing() {
     console.log("ℹ️ THREADS credentials not set. Skipping Threads.");
   }
 
-  // 5. Post to Bluesky if configured
+  // 6. Post to Bluesky if configured
   if (process.env.BSKY_HANDLE && process.env.BSKY_APP_PASSWORD) {
     try {
-      bskyUri = await postToBluesky(postContent);
+      bskyUri = await postToBluesky(bskyPostContent);
     } catch (err: any) {
       console.error("❌ Bluesky Posting Error:", err.message);
     }
@@ -367,7 +385,7 @@ async function runAutoMarketing() {
     console.log("ℹ️ BSKY_HANDLE or BSKY_APP_PASSWORD not set. Skipping Bluesky.");
   }
 
-  // 6. ALWAYS Notify Discord
+  // 7. ALWAYS Notify Discord
   await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
   console.log("🎉 Global marketing automation run completed!");
 }
