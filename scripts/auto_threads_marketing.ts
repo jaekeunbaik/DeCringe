@@ -214,8 +214,17 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
       { name: "🔗 Landing URL", value: "https://de-cringe.vercel.app", inline: false },
     ];
 
-    if (threadsPostId) fields.push({ name: "📲 Threads Post ID", value: threadsPostId, inline: true });
-    if (bskyUri) fields.push({ name: "🦋 Bluesky Status", value: "Posted Successfully", inline: true });
+    fields.push({
+      name: "📲 Threads Status",
+      value: threadsPostId ? `Posted (ID: ${threadsPostId})` : "Skipped / Not Configured",
+      inline: true,
+    });
+
+    fields.push({
+      name: "🦋 Bluesky Status",
+      value: bskyUri ? "Posted Successfully" : "Skipped / Not Configured",
+      inline: true,
+    });
 
     const res = await fetch(discordUrl, {
       method: "POST",
@@ -223,7 +232,7 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
       body: JSON.stringify({
         embeds: [
           {
-            title: "🚀 [Global Auto-Marketing] New Viral Posts Published!",
+            title: "🚀 [Global Auto-Marketing] Daily Viral Content Report",
             color: 0x00b9fe,
             fields,
             timestamp: new Date().toISOString(),
@@ -310,9 +319,9 @@ async function runAutoMarketing() {
     console.log("ℹ️ BSKY_HANDLE or BSKY_APP_PASSWORD not set. Skipping Bluesky.");
   }
 
-  // 6. Notify Discord
+  // 6. ALWAYS Notify Discord
   await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
-  console.log("🎉 Global marketing automation complete!");
+  console.log("🎉 Global marketing automation run completed!");
 }
 
 runAutoMarketing().catch((err) => {
