@@ -1,9 +1,9 @@
-name: 🚀 DeCringe Automated Threads Marketing
+name: 🚀 DeCringe Automated Global Marketing (Threads & Bluesky)
 
 on:
   schedule:
-    # Runs daily at 13:00 UTC (10:00 PM KST / 9:00 AM EST)
-    - cron: "0 13 * * *"
+    # Runs 2x daily at 01:00 UTC & 13:00 UTC (10:00 AM KST / 10:00 PM KST)
+    - cron: "0 1,13 * * *"
   workflow_dispatch:
 
 jobs:
@@ -22,11 +22,13 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Execute Threads Marketing Bot
+      - name: Execute Global SNS Marketing Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: npx tsx scripts/auto_threads_marketing.ts

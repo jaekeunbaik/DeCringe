@@ -57,6 +57,7 @@ async function analyzePost(apiKey: string, draft: string): Promise<PolishResult>
   return JSON.parse(res.text || "{}");
 }
 
+/* ==================== THREADS AUTOMATION ==================== */
 async function waitForThreadsContainerReady(creationId: string, accessToken: string): Promise<void> {
   const maxRetries = 20;
   for (let i = 0; i < maxRetries; i++) {
@@ -69,7 +70,6 @@ async function waitForThreadsContainerReady(creationId: string, accessToken: str
       console.log(`[Threads] Checking container status (${i + 1}/${maxRetries}): ${status || "CHECKING..."}`);
 
       if (status === "FINISHED" || status === "PUBLISHED") {
-        // Meta Graph API propagation buffer
         await new Promise((r) => setTimeout(r, 3000));
         return;
       }
@@ -88,7 +88,7 @@ async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
   const accessToken = process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 
   if (!threadsUserId || !accessToken) {
-    throw new Error("THREADS_USER_ID or THREADS_ACCESS_TOKEN / META_ACCESS_TOKEN is not configured.");
+    throw new Error("THREADS_USER_ID or THREADS_ACCESS_TOKEN is not configured.");
   }
 
   console.log(`[Threads] Creating container (Length: ${threadText.length} chars)...`);
@@ -143,28 +143,84 @@ async function postToThreads(threadText: string): Promise<string> {
     }
   }
 
-  throw lastError || new Error("Failed to publish post to Threads after multiple attempts.");
+  throw lastError || new Error("Failed to publish post to Threads.");
 }
 
-async function sendDiscordNotification(score: number, roast: string, postId: string) {
+/* ==================== BLUESKY AUTOMATION ==================== */
+async function postToBluesky(postContent: string): Promise<string> {
+  const handle = process.env.BSKY_HANDLE; // e.g. "ethan.bsky.social"
+  const password = process.env.BSKY_APP_PASSWORD; // e.g. "xxxx-yyyy-zzzz-wwww"
+
+  if (!handle || !password) {
+    throw new Error("BSKY_HANDLE or BSKY_APP_PASSWORD is not configured.");
+  }
+
+  console.log(`[Bluesky] Logging in as ${handle}...`);
+  const sessionRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      identifier: handle,
+      password: password,
+    }),
+  });
+  const sessionData = await sessionRes.json();
+
+  if (!sessionData.accessJwt || !sessionData.did) {
+    throw new Error(`Bluesky login failed: ${JSON.stringify(sessionData)}`);
+  }
+
+  console.log(`[Bluesky] Session created. Publishing post...`);
+  const postRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionData.accessJwt}`,
+    },
+    body: JSON.stringify({
+      repo: sessionData.did,
+      collection: "app.bsky.feed.post",
+      record: {
+        $type: "app.bsky.feed.post",
+        text: postContent,
+        createdAt: new Date().toISOString(),
+      },
+    }),
+  });
+  const postData = await postRes.json();
+
+  if (!postData.uri) {
+    throw new Error(`Bluesky post creation failed: ${JSON.stringify(postData)}`);
+  }
+
+  console.log(`[Bluesky] Successfully published post! URI: ${postData.uri}`);
+  return postData.uri;
+}
+
+/* ==================== DISCORD NOTIFIER ==================== */
+async function sendDiscordNotification(score: number, roast: string, threadsPostId?: string, bskyUri?: string) {
   const discordUrl = process.env.DISCORD_WEBHOOK_URL || process.env.VITE_DISCORD_WEBHOOK_URL;
   if (!discordUrl) return;
 
   try {
+    const fields = [
+      { name: "🚩 Cringe Score", value: `${score}%`, inline: true },
+      { name: "🤡 AI Roast", value: roast, inline: false },
+      { name: "🔗 Landing URL", value: "https://de-cringe.vercel.app", inline: false },
+    ];
+
+    if (threadsPostId) fields.push({ name: "📲 Threads Post ID", value: threadsPostId, inline: true });
+    if (bskyUri) fields.push({ name: "🦋 Bluesky Status", value: "Posted Successfully", inline: true });
+
     await fetch(discordUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         embeds: [
           {
-            title: "🚀 [Threads Auto-Marketing] New Viral Post Published!",
+            title: "🚀 [Global Auto-Marketing] New Viral Posts Published!",
             color: 0x00b9fe,
-            fields: [
-              { name: "🚩 Cringe Score", value: `${score}%`, inline: true },
-              { name: "🤡 AI Roast", value: roast, inline: false },
-              { name: "📲 Threads Post ID", value: postId, inline: true },
-              { name: "🔗 Landing URL", value: "https://de-cringe.vercel.app", inline: true },
-            ],
+            fields,
             timestamp: new Date().toISOString(),
             footer: { text: "DeCringe Auto Marketing Agent" },
           },
@@ -177,6 +233,7 @@ async function sendDiscordNotification(score: number, roast: string, postId: str
   }
 }
 
+/* ==================== MAIN AGENT ==================== */
 async function runAutoMarketing() {
   const apiKey =
     process.env.GEMINI_API_KEY ||
@@ -187,7 +244,7 @@ async function runAutoMarketing() {
     throw new Error("GEMINI_API_KEY environment variable is required.");
   }
 
-  console.log("⚡ Starting DeCringe Automated Threads Marketing Agent...");
+  console.log("⚡ Starting DeCringe Automated Global Marketing Agent (Threads + Bluesky)...");
 
   // 1. Generate sample cringe post
   const draftText = await generateSampleCringePost(apiKey);
@@ -195,12 +252,12 @@ async function runAutoMarketing() {
   // 2. Analyze with DeCringe AI
   const analysis = await analyzePost(apiKey, draftText);
 
-  // 3. Format Threads post with strict 480 char length limit
-  const draftPreview = draftText.length > 90 ? draftText.substring(0, 90) + "..." : draftText;
-  const roastPreview = analysis.oneLineRoast.length > 90 ? analysis.oneLineRoast.substring(0, 90) + "..." : analysis.oneLineRoast;
-  const humanRewrite = analysis.rewrites.human.length > 110 ? analysis.rewrites.human.substring(0, 110) + "..." : analysis.rewrites.human;
+  // 3. Format post with strict 280-480 char length limit
+  const draftPreview = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
+  const roastPreview = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
+  const humanRewrite = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
 
-  const threadsContent = `☣️ LinkedIn Cringe of the Day
+  const postContent = `☣️ LinkedIn Cringe of the Day
 
 📝 Original: "${draftPreview}"
 🚩 Cringe Score: ${analysis.cringeScore}%
@@ -213,17 +270,41 @@ async function runAutoMarketing() {
 
 #buildinpublic #AI #DeCringe`;
 
-  console.log("\n--- THREADS POST PREVIEW (Length: " + threadsContent.length + " chars) ---");
-  console.log(threadsContent);
+  console.log("\n--- POST PREVIEW (Length: " + postContent.length + " chars) ---");
+  console.log(postContent);
   console.log("-----------------------------------------------\n");
 
-  // 4. Post to Threads & notify Discord
+  let threadsPostId: string | undefined;
+  let bskyUri: string | undefined;
+
+  // 4. Post to Threads if configured
   if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
-    const postId = await postToThreads(threadsContent);
-    await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, postId);
-    console.log("🎉 Marketing automation complete! Threads Post ID:", postId);
+    try {
+      threadsPostId = await postToThreads(postContent);
+    } catch (err: any) {
+      console.error("❌ Threads Posting Error:", err.message);
+    }
   } else {
-    console.log("⚠️ THREADS_USER_ID or THREADS_ACCESS_TOKEN not found. Preview generated successfully!");
+    console.log("ℹ️ THREADS credentials not set. Skipping Threads.");
+  }
+
+  // 5. Post to Bluesky if configured
+  if (process.env.BSKY_HANDLE && process.env.BSKY_APP_PASSWORD) {
+    try {
+      bskyUri = await postToBluesky(postContent);
+    } catch (err: any) {
+      console.error("❌ Bluesky Posting Error:", err.message);
+    }
+  } else {
+    console.log("ℹ️ BSKY_HANDLE or BSKY_APP_PASSWORD not set. Skipping Bluesky.");
+  }
+
+  // 6. Notify Discord
+  if (threadsPostId || bskyUri) {
+    await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
+    console.log("🎉 Global marketing automation complete!");
+  } else {
+    console.log("⚠️ No SNS credentials triggered. Preview generated successfully!");
   }
 }
 
