@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { KofiWidget } from "@/components/KofiWidget";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://de-cringe.vercel.app"),
@@ -94,6 +95,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-background text-foreground antialiased bg-brutal-grid">
         {children}
         <KofiWidget />
+        <Analytics />
       </body>
     </html>
   );
