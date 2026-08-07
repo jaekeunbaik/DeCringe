@@ -197,7 +197,55 @@ async function postToThreads(threadText: string): Promise<string> {
   throw lastError || new Error("Failed to publish post to Threads.");
 }
 
-/* ==================== BLUESKY AUTOMATION ==================== */
+/* ==================== BLUESKY AUTOMATION WITH FACETS ==================== */
+function parseBlueskyFacets(text: string) {
+  const facets: any[] = [];
+  const encoder = new TextEncoder();
+
+  // 1. Match URLs for clickable links
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  let match;
+  while ((match = urlRegex.exec(text)) !== null) {
+    const url = match[0];
+    const prefix = text.substring(0, match.index);
+    const startByte = encoder.encode(prefix).length;
+    const endByte = startByte + encoder.encode(url).length;
+
+    facets.push({
+      index: { byteStart: startByte, byteEnd: endByte },
+      features: [
+        {
+          $type: "app.bsky.richtext.facet#link",
+          uri: url,
+        },
+      ],
+    });
+  }
+
+  // 2. Match Hashtags
+  const tagRegex = /(?:^|\s)#([a-zA-Z0-9_]+)/g;
+  while ((match = tagRegex.exec(text)) !== null) {
+    const fullTagStr = match[0].trimStart();
+    const tagWord = match[1];
+    const matchIndex = match.index + (match[0].length - fullTagStr.length);
+    const prefix = text.substring(0, matchIndex);
+    const startByte = encoder.encode(prefix).length;
+    const endByte = startByte + encoder.encode(fullTagStr).length;
+
+    facets.push({
+      index: { byteStart: startByte, byteEnd: endByte },
+      features: [
+        {
+          $type: "app.bsky.richtext.facet#tag",
+          tag: tagWord,
+        },
+      ],
+    });
+  }
+
+  return facets;
+}
+
 async function postToBluesky(postContent: string): Promise<string> {
   const handle = process.env.BSKY_HANDLE;
   const password = process.env.BSKY_APP_PASSWORD;
@@ -221,7 +269,9 @@ async function postToBluesky(postContent: string): Promise<string> {
     throw new Error(`Bluesky login failed: ${JSON.stringify(sessionData)}`);
   }
 
-  console.log(`[Bluesky] Session created. Publishing post (Length: ${postContent.length} chars)...`);
+  const facets = parseBlueskyFacets(postContent);
+  console.log(`[Bluesky] Session created. Publishing post with ${facets.length} rich text facets...`);
+
   const postRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
     method: "POST",
     headers: {
@@ -234,6 +284,7 @@ async function postToBluesky(postContent: string): Promise<string> {
       record: {
         $type: "app.bsky.feed.post",
         text: postContent,
+        facets: facets,
         createdAt: new Date().toISOString(),
       },
     }),
@@ -273,7 +324,7 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
 
     fields.push({
       name: "🦋 Bluesky Status",
-      value: bskyUri ? "Posted Successfully" : "Skipped / Not Configured",
+      value: bskyUri ? "Posted Successfully (With Hyperlinks)" : "Skipped / Not Configured",
       inline: true,
     });
 
@@ -325,7 +376,7 @@ async function runAutoMarketing() {
   const roastPreviewThreads = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
   const humanRewriteThreads = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
 
-  const threadsPostContent = `☣️ LinkedIn Cringe of the Day
+  const threadsPostContent = `MB☣️ LinkedIn Cringe of the Day
 
 📝 Original: "${draftPreviewThreads}"
 🚩 Cringe Score: ${analysis.cringeScore}%
