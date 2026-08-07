@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
+import { KofiWidget } from "@/components/KofiWidget";
 
 export const metadata: Metadata = {
   title: "Antidote for Flex | CringeGuard AI",
@@ -36,36 +36,8 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col bg-background text-foreground antialiased bg-brutal-grid">
         {children}
-        <Script
-          src="https://storage.ko-fi.com/cdn/scripts/overlay-widget.js"
-          strategy="afterInteractive"
-        />
-        <Script id="kofi-widget-init" strategy="afterInteractive">
-          {`
-            window.addEventListener('load', function() {
-              if (window.kofiWidgetOverlay) {
-                kofiWidgetOverlay.draw('ethan0117', {
-                  'type': 'floating-chat',
-                  'floating-chat.donateButton.text': 'Support me',
-                  'floating-chat.donateButton.background-color': '#5bc0de',
-                  'floating-chat.donateButton.text-color': '#323842'
-                });
-              }
-            });
-            setTimeout(function() {
-              if (window.kofiWidgetOverlay && !document.getElementById('kofi-widget-overlay')) {
-                kofiWidgetOverlay.draw('ethan0117', {
-                  'type': 'floating-chat',
-                  'floating-chat.donateButton.text': 'Support me',
-                  'floating-chat.donateButton.background-color': '#5bc0de',
-                  'floating-chat.donateButton.text-color': '#323842'
-                });
-              }
-            }, 1000);
-          `}
-        </Script>
+        <KofiWidget />
       </body>
     </html>
   );
 }
-
