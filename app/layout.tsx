@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Ethan", url: "https://ko-fi.com/ethan0117" }],
   creator: "Ethan",
   publisher: "Antidote AI",
+  verification: {
+    google: "coYlpU9HVJXVvz9RmjkNZQHXaurqiUiewwUGPb8qXCw",
+  },
   robots: {
     index: true,
     follow: true,
