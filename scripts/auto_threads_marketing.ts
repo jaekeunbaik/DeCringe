@@ -122,6 +122,37 @@ async function postToThreads(threadText: string): Promise<string> {
   return threadsPostId;
 }
 
+async function sendDiscordNotification(score: number, roast: string, postId: string) {
+  const discordUrl = process.env.DISCORD_WEBHOOK_URL || process.env.VITE_DISCORD_WEBHOOK_URL;
+  if (!discordUrl) return;
+
+  try {
+    await fetch(discordUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [
+          {
+            title: "🚀 [Threads Auto-Marketing] New Viral Post Published!",
+            color: 0x00b9fe,
+            fields: [
+              { name: "🚩 Cringe Score", value: `${score}%`, inline: true },
+              { name: "🤡 AI Roast", value: roast, inline: false },
+              { name: "📲 Threads Post ID", value: postId, inline: true },
+              { name: "🔗 Landing URL", value: "https://de-cringe.vercel.app", inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: "DeCringe Auto Marketing Agent" },
+          },
+        ],
+      }),
+    });
+    console.log("🔔 Discord notification sent successfully!");
+  } catch (err) {
+    console.warn("Discord notification failed:", err);
+  }
+}
+
 async function runAutoMarketing() {
   const apiKey =
     process.env.GEMINI_API_KEY ||
@@ -162,9 +193,10 @@ async function runAutoMarketing() {
   console.log(threadsContent);
   console.log("-----------------------------------------------\n");
 
-  // 4. Post to Threads
+  // 4. Post to Threads & notify Discord
   if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
     const postId = await postToThreads(threadsContent);
+    await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, postId);
     console.log("🎉 Marketing automation complete! Threads Post ID:", postId);
   } else {
     console.log("⚠️ THREADS_USER_ID or THREADS_ACCESS_TOKEN not found. Preview generated successfully!");
