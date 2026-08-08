@@ -15,8 +15,13 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   const handleKakaoShare = () => {
-    const shareTitle = `🚨 [DeCringe] SNS 흑역사 위험도 ${result.cringeScore}점!`;
-    const shareDesc = `🔥 AI 팩폭: "${result.oneLineRoast}"\n✨ 100% 매운맛 교정본 확인하기`;
+    const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(result.oneLineRoast);
+    const shareTitle = isKorean
+      ? `🚨 [DeCringe AI] 흑역사 위험도: ${result.cringeScore}%`
+      : `🚨 [DeCringe AI] Cringe Score: ${result.cringeScore}%`;
+    const shareDesc = isKorean
+      ? `🤡 AI 팩폭:\n"${result.oneLineRoast}"\n\n✨ AI 추천 교정본:\n"${result.rewrites.human.length > 80 ? result.rewrites.human.substring(0, 80) + '...' : result.rewrites.human}"`
+      : `🤡 ONE-LINE ROAST:\n"${result.oneLineRoast}"\n\n✨ HUMAN REWRITE:\n"${result.rewrites.human.length > 80 ? result.rewrites.human.substring(0, 80) + '...' : result.rewrites.human}"`;
     const shareUrl = "https://de-cringe.vercel.app";
 
     if (typeof window !== "undefined" && (window as any).Kakao) {
