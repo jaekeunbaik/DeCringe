@@ -61,71 +61,73 @@ Tone Guide for Rewrites:
 ${userDraft}
 """`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            cringeScore: {
-              type: Type.INTEGER,
-              description: "A number between 0 and 100 indicating cringe/humblebrag level",
-            },
-            oneLineRoast: {
-              type: Type.STRING,
-              description: "A sarcastic, witty one-sentence critique of why the original is cringe",
-            },
-            rewrites: {
-              type: Type.OBJECT,
-              properties: {
-                human: {
-                  type: Type.STRING,
-                  description: "100% casual, normal coffee-shop human tone",
-                },
-                punchyDev: {
-                  type: Type.STRING,
-                  description: "Short, direct, value-focused tech X/Twitter tone",
-                },
-                proNatural: {
-                  type: Type.STRING,
-                  description: "Professional but authentic and relatable tone",
-                },
+  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"];
+  let response: any = null;
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              cringeScore: {
+                type: Type.INTEGER,
+                description: "A number between 0 and 100 indicating cringe/humblebrag level",
               },
-              required: ["human", "punchyDev", "proNatural"],
+              oneLineRoast: {
+                type: Type.STRING,
+                description: "A sarcastic, witty one-sentence critique of why the original is cringe",
+              },
+              rewrites: {
+                type: Type.OBJECT,
+                properties: {
+                  human: {
+                    type: Type.STRING,
+                    description: "100% casual, normal coffee-shop human tone",
+                  },
+                  punchyDev: {
+                    type: Type.STRING,
+                    description: "Short, direct, value-focused tech X/Twitter tone",
+                  },
+                  proNatural: {
+                    type: Type.STRING,
+                    description: "Professional but authentic and relatable tone",
+                  },
+                },
+                required: ["human", "punchyDev", "proNatural"],
+              },
             },
+            required: ["cringeScore", "oneLineRoast", "rewrites"],
           },
-          required: ["cringeScore", "oneLineRoast", "rewrites"],
+          temperature: 0.7,
         },
-        temperature: 0.7,
-      },
-    });
-
-    const responseText = response.text;
-    if (!responseText) {
-      throw new Error("Empty response received from Gemini API.");
+      });
+      if (response && response.text) break;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Gemini API Warning] Model ${model} failed, trying fallback:`, err.message);
     }
-
-    const parsed: PolishResult = JSON.parse(responseText);
-
-    // Ensure cringeScore bounds
-    parsed.cringeScore = Math.min(100, Math.max(0, Math.round(parsed.cringeScore || 0)));
-
-    return parsed;
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    let errorMessage = error.message || "Failed to process post with Gemini API.";
-    if (
-      errorMessage.includes("API key not valid") ||
-      errorMessage.includes("API_KEY_INVALID") ||
-      error.status === 400
-    ) {
-      errorMessage =
-        "The GEMINI_API_KEY in Vercel environment variables is invalid or inactive. Please generate a valid key from Google AI Studio (https://aistudio.google.com/app/apikey) and update GEMINI_API_KEY in Vercel.";
-    }
-    throw new Error(errorMessage);
   }
+
+  if (!response) {
+    throw lastError || new Error("Failed to process post with Gemini API.");
+  }
+
+  const responseText = response.text;
+  if (!responseText) {
+    throw new Error("Empty response received from Gemini API.");
+  }
+
+  const parsed: PolishResult = JSON.parse(responseText);
+
+  // Ensure cringeScore bounds
+  parsed.cringeScore = Math.min(100, Math.max(0, Math.round(parsed.cringeScore || 0)));
+
+  return parsed;
 }
