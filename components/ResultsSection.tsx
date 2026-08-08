@@ -14,6 +14,51 @@ interface ResultsSectionProps {
 export function ResultsSection({ originalText, result }: ResultsSectionProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
 
+  const handleKakaoShare = () => {
+    const shareTitle = `[DeCringe AI] 🤡 Cringe Score: ${result.cringeScore}%`;
+    const shareDesc = `"${result.oneLineRoast}"\n\nRewrite:\n${result.rewrites.human}`;
+    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://cringeguard-ai.vercel.app";
+
+    if (typeof window !== "undefined" && (window as any).Kakao) {
+      const kakao = (window as any).Kakao;
+      if (!kakao.isInitialized()) {
+        try {
+          kakao.init("18bfdf8872f2d93e1176b509ef488a03");
+        } catch (e) {
+          console.warn("Kakao init fallback:", e);
+        }
+      }
+      if (kakao.Share) {
+        kakao.Share.sendDefault({
+          objectType: "feed",
+          content: {
+            title: shareTitle,
+            description: shareDesc,
+            imageUrl: `${shareUrl}/og-image.png`,
+            link: {
+              mobileWebUrl: shareUrl,
+              webUrl: shareUrl,
+            },
+          },
+          buttons: [
+            {
+              title: "🔥 AI 흑역사 검수 받기",
+              link: {
+                mobileWebUrl: shareUrl,
+                webUrl: shareUrl,
+              },
+            },
+          ],
+        });
+        return;
+      }
+    }
+
+    const copyText = `${shareTitle}\n${shareDesc}\n👉 ${shareUrl}`;
+    navigator.clipboard.writeText(copyText);
+    alert("📋 KakaoTalk share text copied to clipboard!");
+  };
+
   // Auto-scroll smooth to results on load
   useEffect(() => {
     if (sectionRef.current) {
@@ -24,11 +69,24 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
   return (
     <section ref={sectionRef} className="w-full max-w-5xl mx-auto px-4 mt-12 mb-16 space-y-8 animate-fadeIn">
       {/* Top Banner Header */}
-      <div className="flex items-center gap-3 border-b-2 border-accent-lime pb-3">
-        <Sparkles className="w-6 h-6 text-accent-lime" />
-        <h2 className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight uppercase">
-          AI Analysis & Human Rewrites
-        </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-accent-lime pb-3">
+        <div className="flex items-center gap-3">
+          <Sparkles className="w-6 h-6 text-accent-lime" />
+          <h2 className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight uppercase">
+            AI Analysis & Human Rewrites
+          </h2>
+        </div>
+
+        <button
+          onClick={handleKakaoShare}
+          className="px-3.5 py-1.5 bg-[#FEE500] hover:bg-[#FDD800] text-[#191919] font-mono text-xs font-black uppercase rounded flex items-center gap-1.5 border border-black shadow-sm transition active:scale-95 cursor-pointer"
+          title="Share Cringe Score on KakaoTalk"
+        >
+          <svg className="w-3.5 h-3.5 fill-[#191919]" viewBox="0 0 24 24">
+            <path d="M12 3c-5.52 0-10 3.58-10 8 0 2.92 1.92 5.48 4.8 6.92-.12.44-.8 2.88-.84 3.08-.04.2.08.28.24.16.12-.08 2.04-1.4 2.88-1.96.96.24 2 .36 2.92.36 5.52 0 10-3.58 10-8s-4.48-8-10-8z"/>
+          </svg>
+          <span>Kakao Share</span>
+        </button>
       </div>
 
       {/* Grid Row 1: Cringe Score Gauge & One-Line Roast */}
