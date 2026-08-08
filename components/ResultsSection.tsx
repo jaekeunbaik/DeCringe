@@ -17,11 +17,11 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
   const handleKakaoShare = () => {
     const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(result.oneLineRoast);
     const shareTitle = isKorean
-      ? `🚨 [DeCringe AI] 흑역사 위험도: ${result.cringeScore}%`
+      ? `🚨 [DeCringe AI] 흑역사 위험도 ${result.cringeScore}%`
       : `🚨 [DeCringe AI] Cringe Score: ${result.cringeScore}%`;
     const shareDesc = isKorean
-      ? `🤡 AI 팩폭:\n"${result.oneLineRoast}"\n\n✨ AI 추천 교정본:\n"${result.rewrites.human.length > 80 ? result.rewrites.human.substring(0, 80) + '...' : result.rewrites.human}"`
-      : `🤡 ONE-LINE ROAST:\n"${result.oneLineRoast}"\n\n✨ HUMAN REWRITE:\n"${result.rewrites.human.length > 80 ? result.rewrites.human.substring(0, 80) + '...' : result.rewrites.human}"`;
+      ? `🔥 AI 팩폭: "${result.oneLineRoast}"`
+      : `🔥 AI ROAST: "${result.oneLineRoast}"`;
     const shareUrl = "https://de-cringe.vercel.app";
 
     if (typeof window !== "undefined" && (window as any).Kakao) {
@@ -39,7 +39,7 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
           content: {
             title: shareTitle,
             description: shareDesc,
-            imageUrl: `${shareUrl}/og-image.png`,
+            imageUrl: `${shareUrl}/og-image.png?v=${Date.now()}`,
             link: {
               mobileWebUrl: shareUrl,
               webUrl: shareUrl,
