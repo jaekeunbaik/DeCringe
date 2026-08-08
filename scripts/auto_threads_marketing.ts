@@ -134,7 +134,7 @@ async function waitForThreadsContainerReady(creationId: string, accessToken: str
   }
 }
 
-async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
+async function postToThreadsSingleAttempt(threadText: string, replyText?: string): Promise<{ postId: string; replyId?: string }> {
   const threadsUserId = process.env.THREADS_USER_ID;
   const accessToken = process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 
@@ -142,7 +142,8 @@ async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
     throw new Error("THREADS_USER_ID or THREADS_ACCESS_TOKEN is not configured.");
   }
 
-  console.log(`[Threads] Creating container (Length: ${threadText.length} chars)...`);
+  // 1. Publish Main Post
+  console.log(`[Threads] Creating main container (Length: ${threadText.length} chars)...`);
   const createRes = await fetch(
     `https://graph.threads.net/v1.0/${threadsUserId}/threads?media_type=TEXT&text=${encodeURIComponent(
       threadText
@@ -156,10 +157,10 @@ async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
     throw new Error(`Failed to create Threads container: ${JSON.stringify(createData)}`);
   }
 
-  console.log(`[Threads] Container created (${creationId}). Polling status...`);
+  console.log(`[Threads] Main container created (${creationId}). Polling status...`);
   await waitForThreadsContainerReady(creationId, accessToken);
 
-  console.log(`[Threads] Publishing post...`);
+  console.log(`[Threads] Publishing main post...`);
   const publishRes = await fetch(
     `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${creationId}&access_token=${accessToken}`,
     { method: "POST" }
@@ -171,19 +172,55 @@ async function postToThreadsSingleAttempt(threadText: string): Promise<string> {
     throw new Error(`Failed to publish Threads post: ${JSON.stringify(publishData)}`);
   }
 
-  return threadsPostId;
+  console.log(`[Threads] Main post published! ID: ${threadsPostId}`);
+
+  // 2. Publish Reply Comment (if provided)
+  let replyId: string | undefined;
+  if (replyText) {
+    await new Promise((r) => setTimeout(r, 2000));
+    console.log(`[Threads] Creating reply comment container for post ID ${threadsPostId}...`);
+    
+    const createReplyRes = await fetch(
+      `https://graph.threads.net/v1.0/${threadsUserId}/threads?media_type=TEXT&text=${encodeURIComponent(
+        replyText
+      )}&reply_to_id=${threadsPostId}&access_token=${accessToken}`,
+      { method: "POST" }
+    );
+    const createReplyData = await createReplyRes.json();
+    const replyCreationId = createReplyData?.id;
+
+    if (replyCreationId) {
+      console.log(`[Threads] Reply container created (${replyCreationId}). Polling status...`);
+      await waitForThreadsContainerReady(replyCreationId, accessToken);
+
+      console.log(`[Threads] Publishing reply comment...`);
+      const publishReplyRes = await fetch(
+        `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish?creation_id=${replyCreationId}&access_token=${accessToken}`,
+        { method: "POST" }
+      );
+      const publishReplyData = await publishReplyRes.json();
+      replyId = publishReplyData?.id;
+      if (replyId) {
+        console.log(`[Threads] ✅ Reply comment published successfully! Reply ID: ${replyId}`);
+      }
+    } else {
+      console.warn("⚠️ [Threads] Failed to create reply container:", JSON.stringify(createReplyData));
+    }
+  }
+
+  return { postId: threadsPostId, replyId };
 }
 
-async function postToThreads(threadText: string): Promise<string> {
+async function postToThreads(threadText: string, replyText?: string): Promise<{ postId: string; replyId?: string }> {
   const maxAttempts = 3;
   let lastError: any = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       console.log(`[Threads] Attempting post (${attempt}/${maxAttempts})...`);
-      const postId = await postToThreadsSingleAttempt(threadText);
-      console.log(`[Threads] Successfully published post! Post ID: ${postId}`);
-      return postId;
+      const res = await postToThreadsSingleAttempt(threadText, replyText);
+      console.log(`[Threads] Successfully published post & reply!`);
+      return res;
     } catch (err: any) {
       lastError = err;
       console.warn(`⚠️ [Threads] Attempt ${attempt} failed: ${err.message || err}`);
@@ -197,7 +234,7 @@ async function postToThreads(threadText: string): Promise<string> {
   throw lastError || new Error("Failed to publish post to Threads.");
 }
 
-/* ==================== BLUESKY AUTOMATION WITH FACETS ==================== */
+/* ==================== BLUESKY AUTOMATION WITH FACETS & REPLIES ==================== */
 function parseBlueskyFacets(text: string) {
   const facets: any[] = [];
   const encoder = new TextEncoder();
@@ -246,7 +283,7 @@ function parseBlueskyFacets(text: string) {
   return facets;
 }
 
-async function postToBluesky(postContent: string): Promise<string> {
+async function postToBluesky(postContent: string, replyContent?: string): Promise<string> {
   const handle = process.env.BSKY_HANDLE;
   const password = process.env.BSKY_APP_PASSWORD;
 
@@ -270,7 +307,7 @@ async function postToBluesky(postContent: string): Promise<string> {
   }
 
   const facets = parseBlueskyFacets(postContent);
-  console.log(`[Bluesky] Session created. Publishing post with ${facets.length} rich text facets...`);
+  console.log(`[Bluesky] Publishing main post with ${facets.length} rich text facets...`);
 
   const postRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
     method: "POST",
@@ -291,11 +328,45 @@ async function postToBluesky(postContent: string): Promise<string> {
   });
   const postData = await postRes.json();
 
-  if (!postData.uri) {
+  if (!postData.uri || !postData.cid) {
     throw new Error(`Bluesky post creation failed: ${JSON.stringify(postData)}`);
   }
 
-  console.log(`[Bluesky] Successfully published post! URI: ${postData.uri}`);
+  console.log(`[Bluesky] Main post published! URI: ${postData.uri}`);
+
+  // Publish reply comment if provided
+  if (replyContent) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const replyFacets = parseBlueskyFacets(replyContent);
+    console.log(`[Bluesky] Publishing reply comment...`);
+
+    const replyRes = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: sessionData.did,
+        collection: "app.bsky.feed.post",
+        record: {
+          $type: "app.bsky.feed.post",
+          text: replyContent,
+          facets: replyFacets,
+          reply: {
+            root: { uri: postData.uri, cid: postData.cid },
+            parent: { uri: postData.uri, cid: postData.cid },
+          },
+          createdAt: new Date().toISOString(),
+        },
+      }),
+    });
+    const replyData = await replyRes.json();
+    if (replyData.uri) {
+      console.log(`[Bluesky] ✅ Reply comment published! URI: ${replyData.uri}`);
+    }
+  }
+
   return postData.uri;
 }
 
@@ -318,13 +389,13 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
 
     fields.push({
       name: "📲 Threads Status",
-      value: threadsPostId ? `Posted (ID: ${threadsPostId})` : "Skipped / Not Configured",
+      value: threadsPostId ? `Posted Main + Reply (ID: ${threadsPostId})` : "Skipped / Not Configured",
       inline: true,
     });
 
     fields.push({
       name: "🦋 Bluesky Status",
-      value: bskyUri ? "Posted Successfully (With Hyperlinks)" : "Skipped / Not Configured",
+      value: bskyUri ? "Posted Main + Reply (With Hyperlinks)" : "Skipped / Not Configured",
       inline: true,
     });
 
@@ -377,12 +448,12 @@ async function runAutoMarketing() {
   // 2. Analyze with DeCringe AI
   const analysis = await analyzePost(apiKey, draftText);
 
-  // 3. Format post for Threads (max 480 chars)
+  // 3. Format MAIN post (NO LINK for maximum algorithmic reach!)
   const draftPreviewThreads = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
   const roastPreviewThreads = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
   const humanRewriteThreads = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
 
-  const threadsPostContent = `MB☣️ LinkedIn Cringe of the Day
+  const threadsPostContent = `☣️ LinkedIn Cringe of the Day
 
 📝 Original: "${draftPreviewThreads}"
 🚩 Cringe Score: ${analysis.cringeScore}%
@@ -391,11 +462,13 @@ async function runAutoMarketing() {
 💡 Human Rewrite:
 "${humanRewriteThreads}"
 
-👉 Fix your post: https://de-cringe.vercel.app
+#buildinpublic #AI #DeCringe #JobSeekers`;
 
-#buildinpublic #AI #DeCringe`;
+  // Reply content containing the landing link
+  const threadsReplyContent = `👉 Fix your cringe posts & resumes with AI for free:
+https://de-cringe.vercel.app`;
 
-  // 4. Format post for Bluesky (strict max 280 chars limit)
+  // 4. Format Bluesky post
   const draftPreviewBsky = draftText.length > 55 ? draftText.substring(0, 55) + "..." : draftText;
   const roastPreviewBsky = analysis.oneLineRoast.length > 55 ? analysis.oneLineRoast.substring(0, 55) + "..." : analysis.oneLineRoast;
 
@@ -405,25 +478,23 @@ async function runAutoMarketing() {
 🚩 Score: ${analysis.cringeScore}%
 🤡 Roast: "${roastPreviewBsky}"
 
-👉 Fix your post: https://de-cringe.vercel.app
-
 #buildinpublic #AI #DeCringe`;
 
-  console.log("\n--- THREADS PREVIEW (Length: " + threadsPostContent.length + " chars) ---");
+  const bskyReplyContent = `👉 Fix your post with DeCringe AI: https://de-cringe.vercel.app`;
+
+  console.log("\n--- THREADS MAIN POST PREVIEW ---");
   console.log(threadsPostContent);
+  console.log("\n--- THREADS REPLY COMMENT PREVIEW ---");
+  console.log(threadsReplyContent);
   console.log("-----------------------------------------------\n");
 
-  console.log("--- BLUESKY PREVIEW (Length: " + bskyPostContent.length + " chars) ---");
-  console.log(bskyPostContent);
-  console.log("-----------------------------------------------\n");
-
-  let threadsPostId: string | undefined;
+  let threadsResult: { postId: string; replyId?: string } | undefined;
   let bskyUri: string | undefined;
 
   // 5. Post to Threads if configured
   if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
     try {
-      threadsPostId = await postToThreads(threadsPostContent);
+      threadsResult = await postToThreads(threadsPostContent, threadsReplyContent);
     } catch (err: any) {
       console.error("❌ Threads Posting Error:", err.message);
     }
@@ -434,7 +505,7 @@ async function runAutoMarketing() {
   // 6. Post to Bluesky if configured
   if (process.env.BSKY_HANDLE && process.env.BSKY_APP_PASSWORD) {
     try {
-      bskyUri = await postToBluesky(bskyPostContent);
+      bskyUri = await postToBluesky(bskyPostContent, bskyReplyContent);
     } catch (err: any) {
       console.error("❌ Bluesky Posting Error:", err.message);
     }
@@ -443,7 +514,7 @@ async function runAutoMarketing() {
   }
 
   // 7. ALWAYS Notify Discord
-  await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsPostId, bskyUri);
+  await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsResult?.postId, bskyUri);
   console.log("🎉 Global marketing automation run completed!");
 }
 
