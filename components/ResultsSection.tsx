@@ -17,7 +17,7 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
   const handleKakaoShare = () => {
     const shareTitle = `[DeCringe AI] 🤡 Cringe Score: ${result.cringeScore}%`;
     const shareDesc = `"${result.oneLineRoast}"\n\nRewrite:\n${result.rewrites.human}`;
-    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://cringeguard-ai.vercel.app";
+    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://de-cringe.vercel.app";
 
     if (typeof window !== "undefined" && (window as any).Kakao) {
       const kakao = (window as any).Kakao;
