@@ -4,7 +4,7 @@ import { analyzeAndPolishPost } from "@/lib/gemini";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { text } = body;
+    const { text, targetLang } = body;
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
       return NextResponse.json(
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await analyzeAndPolishPost(text.trim());
+    const result = await analyzeAndPolishPost(text.trim(), targetLang || "auto");
 
     // Optional Discord webhook logging if configured
     const discordUrl = process.env.DISCORD_WEBHOOK_URL || process.env.VITE_DISCORD_WEBHOOK_URL;

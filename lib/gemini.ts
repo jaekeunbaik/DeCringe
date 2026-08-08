@@ -41,10 +41,22 @@ const getAiClient = () => {
   });
 };
 
-export async function analyzeAndPolishPost(userDraft: string): Promise<PolishResult> {
+export async function analyzeAndPolishPost(
+  userDraft: string,
+  targetLang: "auto" | "ko" | "en" = "auto"
+): Promise<PolishResult> {
   const ai = getAiClient();
 
-  const isKoreanDraft = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(userDraft);
+  const isKoreanDraft =
+    targetLang === "ko"
+      ? true
+      : targetLang === "en"
+      ? false
+      : /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(userDraft);
+
+  const languageRule = isKoreanDraft
+    ? "CRITICAL LANGUAGE RULE: Write the oneLineRoast and all 3 rewrites in natural, witty Korean (한국어)."
+    : "CRITICAL LANGUAGE RULE: Write the oneLineRoast and all 3 rewrites in natural, punchy English.";
 
   const systemInstruction = `You are "Antidote," a seasoned, witty, anti-cringe communications expert and writing coach for independent developers and tech professionals. You loathe corporate speak, humble-bragging, and overly performant 'LinkedIn-style' posts.
 
@@ -52,7 +64,7 @@ Your goal is to take a user's drafted social media post (usually for LinkedIn or
 1. Roast it: Critically analyze it for obnoxiousness, humble-bragging, and "LinkedIn-ness."
 2. Rewrite it: Provide 3 new, authentic, genuinely human versions.
 
-CRITICAL LANGUAGE RULE: Match the language of the user's input draft! If the user draft is written in Korean, respond with oneLineRoast and rewrites in natural, sharp Korean. If the user draft is written in English, respond in English.
+${languageRule}
 
 Tone Guide for Rewrites:
 * NEVER: Use "Here are some takeaways...", "I am humbled to share...", "A quick thread...", "What's your view?", "Let's dive in", "Agree?".

@@ -18,7 +18,7 @@ export default function Home() {
     fetch("/api/track").catch(() => {});
   }, []);
 
-  const handlePolishPost = async (inputText: string) => {
+  const handlePolishPost = async (inputText: string, targetLang: "auto" | "ko" | "en" = "auto") => {
     setIsLoading(true);
     setError(null);
     setOriginalText(inputText);
@@ -29,7 +29,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: inputText }),
+        body: JSON.stringify({ text: inputText, targetLang }),
       });
 
       const json = await res.json();

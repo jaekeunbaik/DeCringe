@@ -5,7 +5,7 @@ import { CRINGE_SAMPLES, CringeSample } from "@/lib/samples";
 import { Sparkles, RefreshCw, AlertCircle, ArrowRight } from "lucide-react";
 
 interface InputSectionProps {
-  onPolish: (text: string) => void;
+  onPolish: (text: string, targetLang: "auto" | "ko" | "en") => void;
   isLoading: boolean;
   error?: string | null;
 }
@@ -21,6 +21,7 @@ const LOADING_MESSAGES = [
 
 export function InputSection({ onPolish, isLoading, error }: InputSectionProps) {
   const [text, setText] = useState("");
+  const [targetLang, setTargetLang] = useState<"auto" | "ko" | "en">("auto");
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
 
   // Rotate loading message while analyzing
@@ -43,7 +44,7 @@ export function InputSection({ onPolish, isLoading, error }: InputSectionProps) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim() || isLoading) return;
-    onPolish(text.trim());
+    onPolish(text.trim(), targetLang);
   };
 
   const charCount = text.length;
@@ -86,6 +87,46 @@ export function InputSection({ onPolish, isLoading, error }: InputSectionProps) 
             </span>
           </button>
         ))}
+      </div>
+
+      {/* Language Selector */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1 font-mono text-xs">
+        <span className="text-zinc-400 font-bold uppercase tracking-wider">🌐 Output Language:</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setTargetLang("auto")}
+            className={`px-3 py-1 rounded border transition-all ${
+              targetLang === "auto"
+                ? "bg-accent-lime text-black border-accent-lime font-bold"
+                : "bg-card text-zinc-400 border-border hover:border-zinc-500"
+            }`}
+          >
+            🌐 Auto
+          </button>
+          <button
+            type="button"
+            onClick={() => setTargetLang("ko")}
+            className={`px-3 py-1 rounded border transition-all ${
+              targetLang === "ko"
+                ? "bg-accent-lime text-black border-accent-lime font-bold"
+                : "bg-card text-zinc-400 border-border hover:border-zinc-500"
+            }`}
+          >
+            🇰🇷 한국어
+          </button>
+          <button
+            type="button"
+            onClick={() => setTargetLang("en")}
+            className={`px-3 py-1 rounded border transition-all ${
+              targetLang === "en"
+                ? "bg-accent-lime text-black border-accent-lime font-bold"
+                : "bg-card text-zinc-400 border-border hover:border-zinc-500"
+            }`}
+          >
+            🇺🇸 English
+          </button>
+        </div>
       </div>
 
       {/* Form */}
