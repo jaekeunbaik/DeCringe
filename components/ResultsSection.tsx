@@ -23,6 +23,8 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
       ? `🔥 AI 팩폭: "${result.oneLineRoast}"`
       : `🔥 AI ROAST: "${result.oneLineRoast}"`;
     const shareUrl = "https://de-cringe.vercel.app";
+    const encodedRoast = encodeURIComponent(result.oneLineRoast);
+    const dynamicOgUrl = `${shareUrl}/api/og?score=${result.cringeScore}&roast=${encodedRoast}&v=${Date.now()}`;
 
     if (typeof window !== "undefined" && (window as any).Kakao) {
       const kakao = (window as any).Kakao;
@@ -39,7 +41,7 @@ export function ResultsSection({ originalText, result }: ResultsSectionProps) {
           content: {
             title: shareTitle,
             description: shareDesc,
-            imageUrl: `${shareUrl}/og-image.png?v=${Date.now()}`,
+            imageUrl: dynamicOgUrl,
             link: {
               mobileWebUrl: shareUrl,
               webUrl: shareUrl,
