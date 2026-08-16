@@ -371,7 +371,14 @@ async function postToBluesky(postContent: string, replyContent?: string): Promis
 }
 
 /* ==================== DISCORD NOTIFIER ==================== */
-async function sendDiscordNotification(score: number, roast: string, threadsPostId?: string, bskyUri?: string) {
+async function sendDiscordNotification(score: number, roast: string, threadsPostId?: string, bskyUri?: string, errorMessage?: string) {
+  // 성공 시에는 디스코드 알림을 건너뛰고, 오직 업로드 실패/오류 발생 시에만 알림 발송
+  const isSuccess = Boolean(threadsPostId || bskyUri) && !errorMessage;
+  if (isSuccess) {
+    console.log("✨ [DeCringe] 마케팅 자동화 성공 완료! (성공 시 알림 생략, 실패 시에만 발송)");
+    return;
+  }
+
   const discordUrl = process.env.DISCORD_WEBHOOK_URL || process.env.VITE_DISCORD_WEBHOOK_URL;
   
   if (!discordUrl) {
@@ -379,7 +386,7 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
     return;
   }
 
-  console.log("🔔 Sending Discord Notification...");
+  console.log("🚨 [DeCringe] 마케팅 자동화 실패/경고 감지 -> 디스코드로 실패 알림 전송 중...");
   try {
     const fields = [
       { name: "🚩 Cringe Score", value: `${score}%`, inline: true },
@@ -389,21 +396,23 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
 
     fields.push({
       name: "📲 Threads Status",
-      value: threadsPostId ? `Posted Main + Reply (ID: ${threadsPostId})` : "Skipped / Not Configured",
+      value: threadsPostId ? `✅ Posted (ID: ${threadsPostId})` : "❌ 실패 / 제외",
       inline: true,
     });
 
     fields.push({
       name: "🦋 Bluesky Status",
-      value: bskyUri ? "Posted Main + Reply (With Hyperlinks)" : "Skipped / Not Configured",
+      value: bskyUri ? "✅ Posted (With Hyperlinks)" : "❌ 실패 / 제외",
       inline: true,
     });
 
-    fields.push({
-      name: "📊 Realtime Traffic Dashboard",
-      value: "[Vercel Analytics Dashboard](https://vercel.com)",
-      inline: false,
-    });
+    if (errorMessage) {
+      fields.push({
+        name: "⚠️ 에러 메시지",
+        value: `\`\`\`${errorMessage.substring(0, 300)}\`\`\``,
+        inline: false,
+      });
+    }
 
     const res = await fetch(discordUrl, {
       method: "POST",
@@ -411,18 +420,18 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
       body: JSON.stringify({
         embeds: [
           {
-            title: "🚀 [Global Auto-Marketing] Daily Viral Content & Traffic Report",
-            color: 0x00b9fe,
+            title: "🚨 [DeCringe] 글로벌 마케팅 자동 포스팅 실패 리포트",
+            color: 0xff0055,
             fields,
             timestamp: new Date().toISOString(),
-            footer: { text: "DeCringe Auto Marketing & Traffic Agent" },
+            footer: { text: "DeCringe Marketing Secretary • 오류 발생 알림" },
           },
         ],
       }),
     });
     
     if (res.ok) {
-      console.log("✅ Discord notification sent successfully!");
+      console.log("✅ Discord failure notification sent successfully!");
     } else {
       const errText = await res.text();
       console.error(`❌ Discord Webhook failed with status ${res.status}:`, errText);
@@ -442,18 +451,26 @@ async function runAutoMarketing() {
 
   console.log("⚡ Starting DeCringe Automated Global Marketing Agent (Threads + Bluesky)...");
 
-  // 1. Generate sample cringe post
-  const draftText = await generateSampleCringePost(apiKey);
+  let draftText = "";
+  let analysis: any = { cringeScore: 85, oneLineRoast: "Self-proclaimed thought leader alert.", rewrites: { human: "" } };
+  let threadsResult: { postId: string; replyId?: string } | undefined;
+  let bskyUri: string | undefined;
+  let hasError = false;
+  let errorMsg = "";
 
-  // 2. Analyze with DeCringe AI
-  const analysis = await analyzePost(apiKey, draftText);
+  try {
+    // 1. Generate sample cringe post
+    draftText = await generateSampleCringePost(apiKey);
 
-  // 3. Format MAIN post (NO LINK for maximum algorithmic reach!)
-  const draftPreviewThreads = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
-  const roastPreviewThreads = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
-  const humanRewriteThreads = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
+    // 2. Analyze with DeCringe AI
+    analysis = await analyzePost(apiKey, draftText);
 
-  const threadsPostContent = `☣️ LinkedIn Cringe of the Day
+    // 3. Format MAIN post (NO LINK for maximum algorithmic reach!)
+    const draftPreviewThreads = draftText.length > 80 ? draftText.substring(0, 80) + "..." : draftText;
+    const roastPreviewThreads = analysis.oneLineRoast.length > 80 ? analysis.oneLineRoast.substring(0, 80) + "..." : analysis.oneLineRoast;
+    const humanRewriteThreads = analysis.rewrites.human.length > 100 ? analysis.rewrites.human.substring(0, 100) + "..." : analysis.rewrites.human;
+
+    const threadsPostContent = `☣️ LinkedIn Cringe of the Day
 
 📝 Original: "${draftPreviewThreads}"
 🚩 Cringe Score: ${analysis.cringeScore}%
@@ -464,15 +481,15 @@ async function runAutoMarketing() {
 
 #buildinpublic #AI #DeCringe #JobSeekers`;
 
-  // Reply content containing the landing link
-  const threadsReplyContent = `👉 Fix your cringe posts & resumes with AI for free:
+    // Reply content containing the landing link
+    const threadsReplyContent = `👉 Fix your cringe posts & resumes with AI for free:
 https://de-cringe.vercel.app`;
 
-  // 4. Format Bluesky post
-  const draftPreviewBsky = draftText.length > 55 ? draftText.substring(0, 55) + "..." : draftText;
-  const roastPreviewBsky = analysis.oneLineRoast.length > 55 ? analysis.oneLineRoast.substring(0, 55) + "..." : analysis.oneLineRoast;
+    // 4. Format Bluesky post
+    const draftPreviewBsky = draftText.length > 55 ? draftText.substring(0, 55) + "..." : draftText;
+    const roastPreviewBsky = analysis.oneLineRoast.length > 55 ? analysis.oneLineRoast.substring(0, 55) + "..." : analysis.oneLineRoast;
 
-  const bskyPostContent = `☣️ Cringe of the Day
+    const bskyPostContent = `☣️ Cringe of the Day
 
 📝 "${draftPreviewBsky}"
 🚩 Score: ${analysis.cringeScore}%
@@ -480,45 +497,59 @@ https://de-cringe.vercel.app`;
 
 #buildinpublic #AI #DeCringe`;
 
-  const bskyReplyContent = `👉 Fix your post with DeCringe AI: https://de-cringe.vercel.app`;
+    const bskyReplyContent = `👉 Fix your post with DeCringe AI: https://de-cringe.vercel.app`;
 
-  console.log("\n--- THREADS MAIN POST PREVIEW ---");
-  console.log(threadsPostContent);
-  console.log("\n--- THREADS REPLY COMMENT PREVIEW ---");
-  console.log(threadsReplyContent);
-  console.log("-----------------------------------------------\n");
+    console.log("\n--- THREADS MAIN POST PREVIEW ---");
+    console.log(threadsPostContent);
+    console.log("\n--- THREADS REPLY COMMENT PREVIEW ---");
+    console.log(threadsReplyContent);
+    console.log("-----------------------------------------------\n");
 
-  let threadsResult: { postId: string; replyId?: string } | undefined;
-  let bskyUri: string | undefined;
-
-  // 5. Post to Threads if configured
-  if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
-    try {
-      threadsResult = await postToThreads(threadsPostContent, threadsReplyContent);
-    } catch (err: any) {
-      console.error("❌ Threads Posting Error:", err.message);
+    // 5. Post to Threads if configured
+    if (process.env.THREADS_USER_ID && (process.env.THREADS_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN)) {
+      try {
+        threadsResult = await postToThreads(threadsPostContent, threadsReplyContent);
+      } catch (err: any) {
+        console.error("❌ Threads Posting Error:", err.message);
+        hasError = true;
+        errorMsg += `Threads Error: ${err.message}\n`;
+      }
+    } else {
+      console.log("ℹ️ THREADS credentials not set. Skipping Threads.");
     }
-  } else {
-    console.log("ℹ️ THREADS credentials not set. Skipping Threads.");
+
+    // 6. Post to Bluesky if configured
+    if (process.env.BSKY_HANDLE && process.env.BSKY_APP_PASSWORD) {
+      try {
+        bskyUri = await postToBluesky(bskyPostContent, bskyReplyContent);
+      } catch (err: any) {
+        console.error("❌ Bluesky Posting Error:", err.message);
+        hasError = true;
+        errorMsg += `Bluesky Error: ${err.message}\n`;
+      }
+    } else {
+      console.log("ℹ️ BSKY_HANDLE or BSKY_APP_PASSWORD not set. Skipping Bluesky.");
+    }
+
+  } catch (err: any) {
+    hasError = true;
+    errorMsg = err.message || String(err);
+    console.error("❌ Marketing Execution Error:", err);
   }
 
-  // 6. Post to Bluesky if configured
-  if (process.env.BSKY_HANDLE && process.env.BSKY_APP_PASSWORD) {
-    try {
-      bskyUri = await postToBluesky(bskyPostContent, bskyReplyContent);
-    } catch (err: any) {
-      console.error("❌ Bluesky Posting Error:", err.message);
-    }
-  } else {
-    console.log("ℹ️ BSKY_HANDLE or BSKY_APP_PASSWORD not set. Skipping Bluesky.");
-  }
+  // 7. Notify Discord ONLY if there was an error or all failed
+  await sendDiscordNotification(
+    analysis.cringeScore,
+    analysis.oneLineRoast,
+    threadsResult?.postId,
+    bskyUri,
+    hasError ? errorMsg : undefined
+  );
 
-  // 7. ALWAYS Notify Discord
-  await sendDiscordNotification(analysis.cringeScore, analysis.oneLineRoast, threadsResult?.postId, bskyUri);
   console.log("🎉 Global marketing automation run completed!");
 }
 
 runAutoMarketing().catch((err) => {
-  console.error("❌ Marketing Agent Error:", err);
+  console.error("❌ Marketing Agent Critical Error:", err);
   process.exit(1);
 });
