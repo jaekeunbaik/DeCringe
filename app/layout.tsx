@@ -27,6 +27,9 @@ export const metadata: Metadata = {
   publisher: "Antidote AI",
   verification: {
     google: "coYlpU9HVJXVvz9RmjkNZQHXaurqiUiewwUGPb8qXCw",
+    other: {
+      "naver-site-verification": "a6ae281827bb1bbecb6ee62420151a1b6f2ea235",
+    },
   },
   robots: {
     index: true,
