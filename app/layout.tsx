@@ -89,6 +89,11 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         <meta name="google-site-verification" content="coYlpU9HVJXVvz9RmjkNZQHXaurqiUiewwUGPb8qXCw" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4403789108346139"
+          crossOrigin="anonymous"
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
