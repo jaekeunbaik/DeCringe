@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { InputSection } from "@/components/InputSection";
 import { ResultsSection } from "@/components/ResultsSection";
+import { AdBanner } from "@/components/AdBanner";
 import { Footer } from "@/components/Footer";
 import { PolishResult } from "@/lib/gemini";
 
@@ -64,6 +65,8 @@ export default function Home() {
               result={result}
             />
           )}
+
+          <AdBanner className="mt-8" />
         </main>
       </div>
 
