@@ -1,9 +1,9 @@
 name: 🚀 DeCringe Automated Global Marketing (Threads & Bluesky)
 
 on:
-  schedule:
-    # Runs 2x daily at 01:00 UTC & 13:00 UTC (10:00 AM KST / 10:00 PM KST)
-    - cron: "0 1,13 * * *"
+  # [DISABLED] 자동 실행 중단 (스케줄 트리거 비활성화)
+  # schedule:
+  #   - cron: "0 1,13 * * *"
   workflow_dispatch:
 
 jobs:

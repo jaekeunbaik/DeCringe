@@ -211,6 +211,17 @@ async function postToThreadsSingleAttempt(threadText: string, replyText?: string
   return { postId: threadsPostId, replyId };
 }
 
+function isAuthOrExpiredTokenError(err: any): boolean {
+  const msg = (err?.message || String(err)).toLowerCase();
+  return (
+    msg.includes("oauthexception") ||
+    msg.includes("code\":190") ||
+    msg.includes("code 190") ||
+    msg.includes("session has expired") ||
+    msg.includes("error validating access token")
+  );
+}
+
 async function postToThreads(threadText: string, replyText?: string): Promise<{ postId: string; replyId?: string }> {
   const maxAttempts = 3;
   let lastError: any = null;
@@ -224,6 +235,12 @@ async function postToThreads(threadText: string, replyText?: string): Promise<{ 
     } catch (err: any) {
       lastError = err;
       console.warn(`⚠️ [Threads] Attempt ${attempt} failed: ${err.message || err}`);
+
+      if (isAuthOrExpiredTokenError(err)) {
+        console.error("🚨 [Threads] Access token expired or invalid (OAuth 190). Aborting retries immediately.");
+        break;
+      }
+
       if (attempt < maxAttempts) {
         console.log("[Threads] Waiting 5 seconds before retrying...");
         await new Promise((r) => setTimeout(r, 5000));
@@ -407,11 +424,25 @@ async function sendDiscordNotification(score: number, roast: string, threadsPost
     });
 
     if (errorMessage) {
+      const isTokenExpired =
+        errorMessage.toLowerCase().includes("oauthexception") ||
+        errorMessage.includes("190") ||
+        errorMessage.toLowerCase().includes("session has expired");
+
       fields.push({
         name: "⚠️ 에러 메시지",
         value: `\`\`\`${errorMessage.substring(0, 300)}\`\`\``,
         inline: false,
       });
+
+      if (isTokenExpired) {
+        fields.push({
+          name: "🔑 조치 안내 (Threads 토큰 만료)",
+          value:
+            "Threads 장기 액세스 토큰(60일)이 만료되었습니다.\nMeta for Developers 콘솔에서 새 토큰을 발급받아 GitHub Secret `THREADS_ACCESS_TOKEN`을 갱신해 주세요.",
+          inline: false,
+        });
+      }
     }
 
     const res = await fetch(discordUrl, {
